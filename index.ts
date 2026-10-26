@@ -129,7 +129,7 @@ const plan = async (input: string, cwd: string): Promise<Plan[]> => {
     const doc = parseDoc(raw);
     let applied;
     try {
-      applied = applyOps(doc.lines, section.ops, section.warnings);
+      applied = applyOps(doc.lines, section.ops);
     } catch (error) {
       throw describeFailure(section.path, error);
     }
@@ -138,8 +138,7 @@ const plan = async (input: string, cwd: string): Promise<Plan[]> => {
     const parts = [formatHeader(section.path, computeTag(next))];
     const changes = formatChanges(applied.lines, applied.changed);
     if (changes) parts.push(changes);
-    let text = parts.join('\n');
-    if (section.warnings.length > 0) text += `\n\nWarnings:\n${section.warnings.join('\n')}`;
+    const text = parts.join('\n');
 
     plans.push({
       path: section.path,

@@ -1,14 +1,13 @@
 import { createHash } from 'node:crypto';
 
 export type Op =
-  | { kind: 'range'; start: number; end: number; body: string[]; cut: boolean; row: number }
+  | { kind: 'range'; start: number; end: number; body: string[]; row: number }
   | { kind: 'insert'; before: boolean; anchor: number | '$'; body: string[]; row: number };
 
 export interface Section {
   path: string;
   tag: string;
   ops: Op[];
-  warnings: string[];
 }
 
 export interface Doc {
@@ -29,8 +28,6 @@ const BAD_HEADER = /^\[.+\]$/;
 const PUT_RANGE = /^PUT (\d+)(?:\.=(\d+))?:$/;
 const PUT_GAP = /^PUT ([<>])(\d+|\$):$/;
 const CUT = /^CUT (\d+)(?:\.=(\d+))?$/;
-const PATCH_MARKER = /^\*\*\* (Begin|End) Patch$/;
-const UNSUPPORTED = /^(PUT|CUT) .*[*@]/;
 
 export const computeTag = (raw: string): string =>
   createHash('sha256').update(raw).digest('hex').slice(0, 4).toUpperCase();
@@ -57,16 +54,6 @@ export const parsePatch = (input: string): Section[] => {
   const sections: Section[] = [];
   let section: Section | undefined;
   let body: string[] | undefined;
-  let ignored = 0;
-
-  const flushIgnored = () => {
-    if (section && ignored > 0) {
-      section.warnings.push(
-        `Ignored ${ignored} \`-\` row(s); ranges already remove the old lines, so only \`+\` rows are written.`,
-      );
-    }
-    ignored = 0;
-  };
   const current = (row: number, text: string): Section => {
     if (!section) throw new Error(`line ${row}: "${text}" must follow a [PATH#TAG] header`);
     return section;
@@ -85,22 +72,12 @@ export const parsePatch = (input: string): Section[] => {
         body.push(text.slice(1));
         return;
       }
-      if (body && text.startsWith('-')) {
-        ignored++;
-        return;
-      }
       const trimmed = text.trim();
-      if (trimmed === '' || PATCH_MARKER.test(trimmed)) return;
+      if (trimmed === '') return;
 
       const header = HEADER.exec(trimmed);
       if (header) {
-        flushIgnored();
-        section = {
-          path: header[1]!,
-          tag: header[2]!.toUpperCase(),
-          ops: [],
-          warnings: [],
-        };
+        section = { path: header[1]!, tag: header[2]!.toUpperCase(), ops: [] };
         sections.push(section);
         body = undefined;
         return;
@@ -119,7 +96,6 @@ export const parsePatch = (input: string): Section[] => {
           start,
           end: range[2] ? Number(range[2]) : start,
           body: [],
-          cut: false,
           row,
         });
         return;
@@ -144,16 +120,10 @@ export const parsePatch = (input: string): Section[] => {
           start,
           end: cut[2] ? Number(cut[2]) : start,
           body: [],
-          cut: true,
           row,
         });
         body = undefined;
         return;
-      }
-      if (UNSUPPORTED.test(trimmed)) {
-        throw new Error(
-          `line ${row}: "${trimmed}" is not supported; block ops (N*) and registers (@name) are not available, use line ranges`,
-        );
       }
       if (body) {
         throw new Error(
@@ -162,7 +132,6 @@ export const parsePatch = (input: string): Section[] => {
       }
       throw new Error(`line ${row}: unknown operation "${trimmed}"`);
     });
-  flushIgnored();
 
   if (sections.length === 0) throw new Error('No [PATH#TAG] section found');
   for (const s of sections) {
@@ -173,11 +142,7 @@ export const parsePatch = (input: string): Section[] => {
   return sections;
 };
 
-export const applyOps = (
-  lines: readonly string[],
-  ops: readonly Op[],
-  warnings: string[],
-): Applied => {
+export const applyOps = (lines: readonly string[], ops: readonly Op[]): Applied => {
   const count = lines.length;
   const checkLine = (op: Op, line: number) => {
     if (line < 1 || line > count) {
@@ -199,9 +164,6 @@ export const applyOps = (
       throw new Error(
         `line ${r.row}: range ${r.start}.=${r.end} overlaps range ${previous.start}.=${previous.end} on line ${previous.row}; use one op per range`,
       );
-    }
-    if (!r.cut && r.body.length === 0) {
-      warnings.push(`Treated empty PUT ${r.start}.=${r.end}: as a deletion; use CUT to delete.`);
     }
   });
 

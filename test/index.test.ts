@@ -117,7 +117,7 @@ test('one call edits several files', async () => {
   const { tagOf, edit, file } = setup({ 'a.txt': 'a\n', 'b.txt': 'b\n' });
   const a = await tagOf('a.txt');
   const b = await tagOf('b.txt');
-  await edit(`*** Begin Patch\n[a.txt#${a}]\nPUT 1:\n+A\n[b.txt#${b}]\nPUT 1:\n+B\n*** End Patch`);
+  await edit(`[a.txt#${a}]\nPUT 1:\n+A\n[b.txt#${b}]\nPUT 1:\n+B`);
   assert.equal(file('a.txt') + file('b.txt'), 'A\nB\n');
 });
 
@@ -145,19 +145,18 @@ test('rows that are neither + nor - are rejected', async () => {
   await assert.rejects(edit(`[a.txt#${tag}]\nPUT 1:\n+ok\nfoo`), /must start with \+/);
 });
 
-test('- rows are ignored with a warning', async () => {
+test('- rows are rejected', async () => {
   const { tagOf, edit, file } = setup({ 'a.txt': 'old\n' });
   const tag = await tagOf('a.txt');
-  const text = await edit(`[a.txt#${tag}]\nPUT 1:\n-old\n+new`);
-  assert.equal(file('a.txt'), 'new\n');
-  assert.match(text, /Ignored 1 `-` row/);
+  await assert.rejects(edit(`[a.txt#${tag}]\nPUT 1:\n-old\n+new`), /must start with \+/);
+  assert.equal(file('a.txt'), 'old\n');
 });
 
 test('block ops and registers are not supported', async () => {
   const { tagOf, edit } = setup({ 'a.txt': '1\n' });
   const tag = await tagOf('a.txt');
-  await assert.rejects(edit(`[a.txt#${tag}]\nPUT 1*:\n+x`), /not supported/);
-  await assert.rejects(edit(`[a.txt#${tag}]\nCUT 1 @fn`), /not supported/);
+  await assert.rejects(edit(`[a.txt#${tag}]\nPUT 1*:\n+x`), /unknown operation/);
+  await assert.rejects(edit(`[a.txt#${tag}]\nCUT 1 @fn`), /unknown operation/);
 });
 
 test('a missing file points at the write tool', async () => {
