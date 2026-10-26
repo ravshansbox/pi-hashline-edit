@@ -1,6 +1,6 @@
 # pi-hashline-edit
 
-Hashline `read` and `edit` tools for pi, modelled on [oh-my-pi](https://github.com/can1357/oh-my-pi)'s hashline edit mode.
+Hashline edit extension for pi.
 
 ## Install
 
@@ -12,7 +12,7 @@ Add `-l` to install it in project settings.
 
 ## Usage
 
-The extension replaces the built-in `read` and `edit` tools.
+It replaces the built-in `read` and `edit` tools with hashline versions, modelled on [oh-my-pi](https://github.com/can1357/oh-my-pi)'s hashline edit mode.
 
 `read` works as before, but text output starts with a `[PATH#TAG]` header and each line has an `N:` prefix. `TAG` is a 4-hex hash of the whole file:
 
@@ -43,7 +43,7 @@ Line numbers always refer to the file as it was read. `edit` rejects a section w
 
 All sections are checked before any file is written. Line endings, a byte order mark and a missing final newline are kept.
 
-## Differences from oh-my-pi
+### Differences from oh-my-pi
 
 - No syntax-block ops (`PUT N*:`, `CUT N*`).
 - No registers (`CUT … @name`, `PUT … @name`).
