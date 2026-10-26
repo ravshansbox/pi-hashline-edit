@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import {
   createReadToolDefinition,
@@ -116,13 +115,6 @@ const applyOps = (lines: readonly string[], ops: readonly Op[]): string[] => {
   return [...out, ...lines.slice(pos)];
 };
 
-const resolvePath = (path: string, cwd: string): string => {
-  const clean = path.startsWith('@') ? path.slice(1) : path;
-  if (clean === '~') return homedir();
-  if (clean.startsWith('~/')) return resolve(homedir(), clean.slice(2));
-  return resolve(cwd, clean);
-};
-
 const toHashline = (
   output: string,
   raw: string,
@@ -157,7 +149,7 @@ export default function (pi: ExtensionAPI) {
       if (first?.type !== 'text' || others.length > 0 || truncation?.firstLineExceedsLimit) {
         return result;
       }
-      const absolute = resolvePath(params.path, ctx.cwd);
+      const absolute = resolve(ctx.cwd, params.path);
       let raw: string;
       try {
         raw = await readFile(absolute, 'utf8');
@@ -185,7 +177,7 @@ export default function (pi: ExtensionAPI) {
     executionMode: 'sequential',
     async execute(_toolCallId, { input }, signal, _onUpdate, ctx) {
       const section = parsePatch(input);
-      const absolute = resolvePath(section.path, ctx.cwd);
+      const absolute = resolve(ctx.cwd, section.path);
       const next = await withFileMutationQueue(absolute, async () => {
         let raw: string;
         try {
