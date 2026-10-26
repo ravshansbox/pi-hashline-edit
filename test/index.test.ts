@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { withFileMutationQueue } from '@earendil-works/pi-coding-agent';
 import extension from '../index.ts';
 
 type Result = { content: { type: string; text?: string }[]; details?: any };
@@ -23,7 +24,7 @@ const setup = (files: Record<string, string>) => {
   const file = (name: string) => readFileSync(join(cwd, name), 'utf8');
   const exists = (name: string) => existsSync(join(cwd, name));
   const tagOf = async (path: string) => /#([0-9A-F]{4})\]/.exec(await read(path))![1]!;
-  return { read, edit, file, exists, tagOf };
+  return { cwd, read, edit, file, exists, tagOf };
 };
 
 test('read shows a header with a tag and numbered lines', async () => {
@@ -95,6 +96,19 @@ test('a stale tag is rejected and the file is left alone', async () => {
   await edit(`[a.txt#${tag}]\nPUT 1:\n+uno`);
   await assert.rejects(edit(`[a.txt#${tag}]\nPUT 1:\n+eins`), /changed since it was read/);
   assert.equal(file('a.txt'), 'uno\n');
+});
+
+test('an edit waits for queued changes to the file and then checks the tag', async () => {
+  const { cwd, tagOf, edit, file } = setup({ 'a.txt': 'one\n' });
+  const tag = await tagOf('a.txt');
+  let pending: Promise<string> | undefined;
+  await withFileMutationQueue(join(cwd, 'a.txt'), async () => {
+    pending = edit(`[a.txt#${tag}]\nPUT 1:\n+uno`);
+    await new Promise((done) => setTimeout(done, 20));
+    writeFileSync(join(cwd, 'a.txt'), 'changed\n');
+  });
+  await assert.rejects(pending!, /changed since it was read/);
+  assert.equal(file('a.txt'), 'changed\n');
 });
 
 test('a second file section is rejected and no file is changed', async () => {

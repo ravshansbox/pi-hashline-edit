@@ -103,22 +103,27 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, { input }, signal, _onUpdate, ctx) {
       const section = parsePatch(input);
       const absolute = resolvePath(section.path, ctx.cwd);
-      let raw: string;
-      try {
-        raw = await readFile(absolute, 'utf8');
-      } catch {
-        throw new Error(`File not found: ${section.path}. Use the write tool to create new files.`);
-      }
-      if (computeTag(raw) !== section.tag) {
-        throw new Error(
-          `Edit rejected for ${section.path}: the file changed since it was read (#${section.tag} is not its current tag). Read it again, then retry.`,
-        );
-      }
-      const doc = parseDoc(raw);
-      const lines = applyOps(doc.lines, section.ops);
-      const next = serialiseDoc({ ...doc, lines });
-      if (signal?.aborted) throw new Error('Operation aborted');
-      await withFileMutationQueue(absolute, () => writeFile(absolute, next, 'utf8'));
+      const next = await withFileMutationQueue(absolute, async () => {
+        let raw: string;
+        try {
+          raw = await readFile(absolute, 'utf8');
+        } catch {
+          throw new Error(
+            `File not found: ${section.path}. Use the write tool to create new files.`,
+          );
+        }
+        if (computeTag(raw) !== section.tag) {
+          throw new Error(
+            `Edit rejected for ${section.path}: the file changed since it was read (#${section.tag} is not its current tag). Read it again, then retry.`,
+          );
+        }
+        const doc = parseDoc(raw);
+        const lines = applyOps(doc.lines, section.ops);
+        const text = serialiseDoc({ ...doc, lines });
+        if (signal?.aborted) throw new Error('Operation aborted');
+        await writeFile(absolute, text, 'utf8');
+        return text;
+      });
       return {
         content: [{ type: 'text', text: formatHeader(section.path, computeTag(next)) }],
         details: undefined,
