@@ -20,9 +20,8 @@ import {
 const EDIT_DESCRIPTION = `Hashline patch for one existing file; create new files with write. The patch starts with [PATH#TAG], where TAG is the 4-hex tag from the latest read of that file. Line numbers are the N:LINE numbers from that read, never shifted by earlier ops in the same patch.
 
 Ops:
-- PUT N.=M: replaces lines N to M (inclusive) with the + body. PUT N: is short for PUT N.=N:.
+- PUT N.=M: replaces lines N to M (inclusive) with the + body; no body deletes them. PUT N: is short for PUT N.=N:.
 - PUT <N: inserts before line N, PUT >N: inserts after line N, PUT >$: appends.
-- CUT N.=M (or CUT N) deletes lines.
 
 Rules:
 - Body rows start with +. A lone + writes a blank line. The rest of the row is written verbatim, including indentation. Write a literal leading + or - as ++ or +-.

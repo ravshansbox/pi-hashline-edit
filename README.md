@@ -34,9 +34,8 @@ PUT >$:
 
 Ops:
 
-- `PUT N.=M:` replaces lines N to M with the `+` body. `PUT N:` replaces one line.
+- `PUT N.=M:` replaces lines N to M with the `+` body; no body deletes them. `PUT N:` replaces one line.
 - `PUT <N:` inserts before line N, `PUT >N:` after it, `PUT >$:` at the end.
-- `CUT N.=M` or `CUT N` deletes lines.
 
 Line numbers always refer to the file as it was read. `edit` rejects the patch when its tag no longer matches the file, so the model has to read again instead of editing stale lines. The response gives only the new header, so the model reads again before the next edit.
 
@@ -44,8 +43,9 @@ All ops are checked before the file is written. Line endings, a byte order mark 
 
 ### Differences from oh-my-pi
 
-- No syntax-block ops (`PUT N*:`, `CUT N*`).
-- No registers (`CUT … @name`, `PUT … @name`).
+- No `CUT`; use `PUT` with no body.
+- No syntax-block ops (`PUT N*:`).
+- No registers (`PUT … @name`).
 - No file ops (`REM`, `MV`).
 - One file per call.
 - No recovery from stale tags using earlier snapshots.

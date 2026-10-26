@@ -68,10 +68,10 @@ test('inserts at the same gap keep their order', async () => {
   assert.equal(file('a.txt'), '1\n2\n3\na\nc\nb\nend\n');
 });
 
-test('CUT deletes lines', async () => {
+test('PUT with no body deletes lines', async () => {
   const { tagOf, edit, file } = setup({ 'a.txt': '1\n2\n3\n4\n' });
   const tag = await tagOf('a.txt');
-  await edit(`[a.txt#${tag}]\nCUT 2.=3\nCUT 4`);
+  await edit(`[a.txt#${tag}]\nPUT 2.=3:\nPUT 4:`);
   assert.equal(file('a.txt'), '1\n');
 });
 
@@ -139,11 +139,12 @@ test('- rows are rejected', async () => {
   assert.equal(file('a.txt'), 'old\n');
 });
 
-test('block ops and registers are not supported', async () => {
+test('block ops, registers and CUT are not supported', async () => {
   const { tagOf, edit } = setup({ 'a.txt': '1\n' });
   const tag = await tagOf('a.txt');
   await assert.rejects(edit(`[a.txt#${tag}]\nPUT 1*:\n+x`), /unknown operation/);
-  await assert.rejects(edit(`[a.txt#${tag}]\nCUT 1 @fn`), /unknown operation/);
+  await assert.rejects(edit(`[a.txt#${tag}]\nPUT 1: @fn`), /unknown operation/);
+  await assert.rejects(edit(`[a.txt#${tag}]\nCUT 1`), /unknown operation/);
 });
 
 test('a missing file points at the write tool', async () => {

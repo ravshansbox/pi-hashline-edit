@@ -22,7 +22,6 @@ const HEADER = /^\[(.+)#([0-9A-Fa-f]{4})\]$/;
 const BAD_HEADER = /^\[.+\]$/;
 const PUT_RANGE = /^PUT (\d+)(?:\.=(\d+))?:$/;
 const PUT_GAP = /^PUT ([<>])(\d+|\$):$/;
-const CUT = /^CUT (\d+)(?:\.=(\d+))?$/;
 
 export const computeTag = (raw: string): string =>
   createHash('sha256').update(raw).digest('hex').slice(0, 4).toUpperCase();
@@ -103,19 +102,6 @@ export const parsePatch = (input: string): Section => {
           body: [],
           row,
         });
-        return;
-      }
-      const cut = CUT.exec(trimmed);
-      if (cut) {
-        const start = Number(cut[1]);
-        addOp(row, trimmed, {
-          kind: 'range',
-          start,
-          end: cut[2] ? Number(cut[2]) : start,
-          body: [],
-          row,
-        });
-        body = undefined;
         return;
       }
       if (body) {
