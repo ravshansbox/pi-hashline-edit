@@ -17,7 +17,6 @@ export interface Doc {
 }
 
 const HEADER = /^\[(.+)#([0-9A-Fa-f]{4})\]$/;
-const BAD_HEADER = /^\[.+\]$/;
 const PUT_RANGE = /^PUT (\d+)(?:\.=(\d+))?:$/;
 const PUT_GAP = /^PUT ([<>])(\d+|\$):$/;
 
@@ -66,12 +65,6 @@ export const parsePatch = (input: string): Section => {
         section = { path: header[1]!, tag: header[2]!.toUpperCase(), ops: [] };
         return;
       }
-      if (BAD_HEADER.test(trimmed)) {
-        throw new Error(
-          `header "${trimmed}" needs the 4-hex tag from the latest read, as [PATH#TAG]`,
-        );
-      }
-
       const range = PUT_RANGE.exec(trimmed);
       if (range) {
         const start = Number(range[1]);
