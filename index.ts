@@ -172,7 +172,7 @@ export default function (pi: ExtensionAPI) {
       }),
     }),
     executionMode: 'sequential',
-    async execute(_toolCallId, { input }, signal, _onUpdate, ctx) {
+    async execute(_toolCallId, { input }, _signal, _onUpdate, ctx) {
       const section = parsePatch(input);
       const absolute = resolve(ctx.cwd, section.path);
       const next = await withFileMutationQueue(absolute, async () => {
@@ -195,7 +195,6 @@ export default function (pi: ExtensionAPI) {
         if (finalNewline) lines.pop();
         const out = applyOps(lines, section.ops);
         const text = out.join(eol) + (finalNewline && out.length > 0 ? eol : '');
-        if (signal?.aborted) throw new Error('Operation aborted');
         await writeFile(absolute, text, 'utf8');
         return text;
       });
