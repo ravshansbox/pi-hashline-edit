@@ -1,7 +1,7 @@
 {
   "name": "@ravshansbox/pi-hashline-edit",
   "version": "0.0.0",
-  "description": "Hashline read and edit tools for pi, modelled on oh-my-pi",
+  "description": "Hashline edit extension for pi",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -15,8 +15,7 @@
   "keywords": [
     "pi-package",
     "pi-extension",
-    "hashline",
-    "edit"
+    "hashline"
   ],
   "pi": {
     "extensions": [
@@ -29,7 +28,7 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "test": "node --test 'test/**/*.test.ts'",
+    "test": "node --test test/*.test.ts",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm test"
   },
   "peerDependencies": {
