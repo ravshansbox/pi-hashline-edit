@@ -26,7 +26,7 @@ PUT >$:
 
 type Op = { text: string; from: number; to: number; check: number[]; body: string[] };
 
-const HEADER = /^\[(.+)#([0-9A-Fa-f]{4})\]$/;
+const HEADER = /^\[(.+)#([0-9A-F]{4})\]$/;
 const PUT = /^PUT (?:(\d+)(?:\.=(\d+))?|<(\d+)|>(\d+|\$)):$/;
 
 const computeTag = (raw: string): string =>
@@ -38,10 +38,7 @@ const parsePatch = (input: string) => {
   let section: { path: string; tag: string; ops: Op[] } | undefined;
   let body: string[] | undefined;
 
-  input
-    .replaceAll('\r\n', '\n')
-    .split('\n')
-    .forEach((text) => {
+  input.split('\n').forEach((text) => {
       if (body && text.startsWith('+')) {
         body.push(text.slice(1));
         return;
@@ -52,7 +49,7 @@ const parsePatch = (input: string) => {
       const header = HEADER.exec(trimmed);
       if (header) {
         if (section) throw new Error('edit one file per call');
-        section = { path: header[1]!, tag: header[2]!.toUpperCase(), ops: [] };
+        section = { path: header[1]!, tag: header[2]!, ops: [] };
         return;
       }
       const put = PUT.exec(trimmed);
