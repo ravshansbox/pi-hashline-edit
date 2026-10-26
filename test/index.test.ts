@@ -145,6 +145,7 @@ test('block ops, registers and CUT are not supported', async () => {
   await assert.rejects(edit(`[a.txt#${tag}]\nPUT 1*:\n+x`), /unknown operation/);
   await assert.rejects(edit(`[a.txt#${tag}]\nPUT 1: @fn`), /unknown operation/);
   await assert.rejects(edit(`[a.txt#${tag}]\nCUT 1`), /unknown operation/);
+  await assert.rejects(edit(`[a.txt#${tag}]\nPUT <$:\n+x`), /unknown operation/);
 });
 
 test('a missing file points at the write tool', async () => {

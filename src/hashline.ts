@@ -18,7 +18,7 @@ export interface Doc {
 
 const HEADER = /^\[(.+)#([0-9A-Fa-f]{4})\]$/;
 const PUT_RANGE = /^PUT (\d+)(?:\.=(\d+))?:$/;
-const PUT_GAP = /^PUT ([<>])(\d+|\$):$/;
+const PUT_GAP = /^PUT (?:<(\d+)|>(\d+|\$)):$/;
 
 export const computeTag = (raw: string): string =>
   createHash('sha256').update(raw).digest('hex').slice(0, 4).toUpperCase();
@@ -78,11 +78,11 @@ export const parsePatch = (input: string): Section => {
       }
       const gap = PUT_GAP.exec(trimmed);
       if (gap) {
-        if (gap[1] === '<' && gap[2] === '$') throw new Error('use PUT >$: to append');
+        const anchor = gap[1] ?? gap[2]!;
         addOp(trimmed, {
           kind: 'insert',
-          before: gap[1] === '<',
-          anchor: gap[2] === '$' ? '$' : Number(gap[2]),
+          before: gap[1] !== undefined,
+          anchor: anchor === '$' ? '$' : Number(anchor),
           body: [],
         });
         return;
