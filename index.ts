@@ -45,11 +45,6 @@ const resolvePath = (path: string, cwd: string): string => {
   return resolve(cwd, clean);
 };
 
-const textOf = (content: readonly { type: string; text?: string }[]): string | undefined => {
-  if (content.length !== 1 || content[0]?.type !== 'text') return undefined;
-  return content[0].text;
-};
-
 const toHashline = (
   output: string,
   raw: string,
@@ -79,17 +74,11 @@ export default function (pi: ExtensionAPI) {
     description: `${builtinRead.description} Text output starts with a [PATH#TAG] header and prefixes each line with N:. The prefixes are not part of the file. Pass the header and line numbers to edit.`,
     async execute(toolCallId, params, signal, onUpdate, ctx) {
       const result = await builtinRead.execute(toolCallId, params, signal, onUpdate, ctx);
-      const output = textOf(result.content);
-      const details = result.details as
-        | {
-            truncation?: {
-              truncated?: boolean;
-              firstLineExceedsLimit?: boolean;
-              outputLines?: number;
-            };
-          }
-        | undefined;
-      if (output === undefined || details?.truncation?.firstLineExceedsLimit) return result;
+      const [first, ...others] = result.content;
+      const truncation = result.details?.truncation;
+      if (first?.type !== 'text' || others.length > 0 || truncation?.firstLineExceedsLimit) {
+        return result;
+      }
       const absolute = resolvePath(params.path, ctx.cwd);
       let raw: string;
       try {
@@ -97,8 +86,8 @@ export default function (pi: ExtensionAPI) {
       } catch {
         return result;
       }
-      const truncated = details?.truncation?.truncated ? details.truncation.outputLines : undefined;
-      const text = toHashline(output, raw, params.path, params.offset, params.limit, truncated);
+      const truncated = truncation?.truncated ? truncation.outputLines : undefined;
+      const text = toHashline(first.text, raw, params.path, params.offset, params.limit, truncated);
       if (text === undefined) return result;
       return { ...result, content: [{ type: 'text', text }], structuredContent: text };
     },
