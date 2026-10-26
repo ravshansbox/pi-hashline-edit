@@ -3,11 +3,21 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { withFileMutationQueue } from '@earendil-works/pi-coding-agent';
+import {
+  createEditToolDefinition,
+  initTheme,
+  withFileMutationQueue,
+} from '@earendil-works/pi-coding-agent';
 import extension from '../index.ts';
 
 type Result = { content: { type: string; text?: string }[]; details?: any };
-type Tool = { name: string; execute: (...args: unknown[]) => Promise<Result> };
+type Tool = {
+  name: string;
+  execute: (...args: unknown[]) => Promise<Result>;
+  renderShell?: string;
+  renderCall?: (...args: any[]) => { render: (width: number) => string[] };
+  renderResult?: (...args: any[]) => { render: (width: number) => string[] };
+};
 
 const setup = (files: Record<string, string>) => {
   const cwd = mkdtempSync(join(tmpdir(), 'hashline-'));
@@ -24,7 +34,7 @@ const setup = (files: Record<string, string>) => {
   const file = (name: string) => readFileSync(join(cwd, name), 'utf8');
   const exists = (name: string) => existsSync(join(cwd, name));
   const tagOf = async (path: string) => /#([0-9A-F]{4})\]/.exec(await read(path))![1]!;
-  return { cwd, read, edit, file, exists, tagOf };
+  return { cwd, tools, read, edit, file, exists, tagOf };
 };
 
 test('read shows a header with a tag and numbered lines', async () => {
@@ -185,4 +195,59 @@ test('a patch with CRLF line breaks is read as LF', async () => {
   const tag = await tagOf('a.txt');
   await edit(`[a.txt#${tag}]\r\nPUT 1:\r\n+A\r\nPUT >$:\r\n+c\r\n`);
   assert.equal(file('a.txt'), 'A\r\nb\r\nc\r\n');
+});
+
+initTheme('dark');
+
+const theme = {
+  fg: (_colour: string, text: string) => text,
+  bg: (colour: string, text: string) => `<${colour}>${text}`,
+  bold: (text: string) => text,
+};
+
+const render = (tool: Tool, args: unknown, result: Result, isError: boolean, cwd: string) => {
+  const context = {
+    args,
+    state: {},
+    cwd,
+    argsComplete: true,
+    isError,
+    outputPad: 1,
+    invalidate: () => {},
+    lastComponent: undefined,
+  };
+  const pending = tool.renderCall!(args, theme, context).render(60);
+  const output = tool.renderResult!(result, { expanded: false, isPartial: false }, theme, context);
+  const settled = tool.renderCall!(args, theme, context).render(60);
+  const lines = [tool.renderShell, ...pending, '---', ...settled, '---', ...output.render(60)];
+  return lines.map((line) => line?.replaceAll(cwd, '<cwd>'));
+};
+
+test('edit renders like the built-in edit tool', async () => {
+  const ours = setup({ 'a.txt': 'one\ntwo\nthree\n' });
+  const theirs = setup({ 'a.txt': 'one\ntwo\nthree\n' });
+  const builtin = createEditToolDefinition(theirs.cwd) as unknown as Tool;
+  const input = `[a.txt#${await ours.tagOf('a.txt')}]\nPUT 2:\n+TWO`;
+  const oursResult = await ours.tools
+    .get('edit')!
+    .execute('id', { input }, undefined, undefined, { cwd: ours.cwd });
+  const builtinArgs = { path: 'a.txt', edits: [{ oldText: 'two', newText: 'TWO' }] };
+  const builtinResult = await builtin.execute('id', builtinArgs, undefined, undefined, {
+    cwd: theirs.cwd,
+  });
+  assert.deepEqual(
+    render(ours.tools.get('edit')!, { input }, oursResult, false, ours.cwd),
+    render(builtin, builtinArgs, builtinResult, false, theirs.cwd),
+  );
+});
+
+test('a failed edit renders like a failed built-in edit', async () => {
+  const ours = setup({ 'a.txt': 'one\n' });
+  const theirs = setup({ 'a.txt': 'one\n' });
+  const builtin = createEditToolDefinition(theirs.cwd) as unknown as Tool;
+  const failure = { content: [{ type: 'text', text: 'boom' }] };
+  assert.deepEqual(
+    render(ours.tools.get('edit')!, { input: '[a.txt#0000]\nPUT 1:\n+x' }, failure, true, ours.cwd),
+    render(builtin, { path: 'a.txt', edits: [] }, failure, true, theirs.cwd),
+  );
 });

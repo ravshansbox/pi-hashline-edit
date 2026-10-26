@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
+  createEditToolDefinition,
   createReadToolDefinition,
   type ExtensionAPI,
+  generateDiffString,
   withFileMutationQueue,
 } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
@@ -129,8 +131,13 @@ const toHashline = (
   return `${header(path, computeTag(raw))}${numbered ? `\n${numbered}` : ''}${rest}`;
 };
 
+const headerPath = (args: { input?: unknown } | undefined) => ({
+  path: typeof args?.input === 'string' ? /^\s*\[(.+)#/.exec(args.input)?.[1] : undefined,
+});
+
 export default function (pi: ExtensionAPI) {
   const builtinRead = createReadToolDefinition(process.cwd());
+  const builtinEdit = createEditToolDefinition(process.cwd());
 
   pi.registerTool({
     ...builtinRead,
@@ -167,6 +174,17 @@ export default function (pi: ExtensionAPI) {
       }),
     }),
     executionMode: 'sequential',
+    renderShell: 'self',
+    renderCall: (args, theme, context) =>
+      builtinEdit.renderCall!(headerPath(args) as never, theme, {
+        ...context,
+        args: headerPath(context.args),
+      } as never),
+    renderResult: (result, options, theme, context) =>
+      builtinEdit.renderResult!(result as never, options, theme, {
+        ...context,
+        args: headerPath(context.args),
+      } as never),
     async execute(_toolCallId, { input }, _signal, _onUpdate, ctx) {
       const section = parsePatch(input);
       const absolute = resolve(ctx.cwd, section.path);
@@ -191,11 +209,15 @@ export default function (pi: ExtensionAPI) {
         const out = applyOps(lines, section.ops);
         const text = out.join(eol) + (finalNewline && out.length > 0 ? eol : '');
         await writeFile(absolute, text, 'utf8');
-        return text;
+        return { raw, text };
       });
+      const { diff, firstChangedLine } = generateDiffString(
+        next.raw.replaceAll('\r\n', '\n'),
+        next.text.replaceAll('\r\n', '\n'),
+      );
       return {
-        content: [{ type: 'text', text: header(section.path, computeTag(next)) }],
-        details: undefined,
+        content: [{ type: 'text', text: header(section.path, computeTag(next.text)) }],
+        details: { diff, firstChangedLine },
       };
     },
   });

@@ -41,6 +41,8 @@ Line numbers always refer to the file as it was read. `edit` rejects the patch w
 
 All ops are checked before the file is written. Line endings and a missing final newline are kept.
 
+`edit` is shown like the built-in `edit` tool: the path from the header, then a diff once the edit is done. Unlike the built-in tool, it shows no diff preview before the edit runs.
+
 ### Differences from oh-my-pi
 
 - No `CUT`; use `PUT` with no body.
