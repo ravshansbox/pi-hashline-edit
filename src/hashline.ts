@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto';
 
-export type Op =
-  | { kind: 'range'; start: number; end: number; body: string[] }
-  | { kind: 'insert'; before: boolean; anchor: number | '$'; body: string[] };
+export interface Op {
+  text: string;
+  from: number;
+  to: number;
+  check: number[];
+  body: string[];
+}
 
 export interface Section {
   path: string;
@@ -17,8 +21,7 @@ export interface Doc {
 }
 
 const HEADER = /^\[(.+)#([0-9A-Fa-f]{4})\]$/;
-const PUT_RANGE = /^PUT (\d+)(?:\.=(\d+))?:$/;
-const PUT_GAP = /^PUT (?:<(\d+)|>(\d+|\$)):$/;
+const PUT = /^PUT (?:(\d+)(?:\.=(\d+))?|<(\d+)|>(\d+|\$)):$/;
 
 export const computeTag = (raw: string): string =>
   createHash('sha256').update(raw).digest('hex').slice(0, 4).toUpperCase();
@@ -42,11 +45,6 @@ export const serialiseDoc = (doc: Doc): string =>
 export const parsePatch = (input: string): Section => {
   let section: Section | undefined;
   let body: string[] | undefined;
-  const addOp = (text: string, op: Op) => {
-    if (!section) throw new Error(`"${text}" must follow a [PATH#TAG] header`);
-    section.ops.push(op);
-    body = op.body;
-  };
 
   input
     .replaceAll('\r\n', '\n')
@@ -65,26 +63,25 @@ export const parsePatch = (input: string): Section => {
         section = { path: header[1]!, tag: header[2]!.toUpperCase(), ops: [] };
         return;
       }
-      const range = PUT_RANGE.exec(trimmed);
-      if (range) {
-        const start = Number(range[1]);
-        addOp(trimmed, {
-          kind: 'range',
-          start,
-          end: range[2] ? Number(range[2]) : start,
-          body: [],
-        });
-        return;
-      }
-      const gap = PUT_GAP.exec(trimmed);
-      if (gap) {
-        const anchor = gap[1] ?? gap[2]!;
-        addOp(trimmed, {
-          kind: 'insert',
-          before: gap[1] !== undefined,
-          anchor: anchor === '$' ? '$' : Number(anchor),
-          body: [],
-        });
+      const put = PUT.exec(trimmed);
+      if (put) {
+        if (!section) throw new Error(`"${trimmed}" must follow a [PATH#TAG] header`);
+        const [, start, end = start, before, after] = put;
+        const n = Number(start ?? before ?? after);
+        if (start && n > Number(end)) {
+          throw new Error(
+            `Invalid range: start ${start}, end ${end}. The value after .= is a line number, not a count`,
+          );
+        }
+        const [from, to, check] = start
+          ? [n - 1, Number(end), [n, Number(end)]]
+          : before
+            ? [n - 1, n - 1, n === 1 ? [] : [n]]
+            : after === '$'
+              ? [Infinity, Infinity, []]
+              : [n, n, [n]];
+        body = [];
+        section.ops.push({ text: trimmed, from, to, check, body });
         return;
       }
       if (body) {
@@ -101,61 +98,27 @@ export const parsePatch = (input: string): Section => {
 };
 
 export const applyOps = (lines: readonly string[], ops: readonly Op[]): string[] => {
-  const count = lines.length;
-  const checkLine = (line: number) => {
-    if (line < 1 || line > count) {
-      throw new Error(`Line ${line} does not exist (file has ${count} lines)`);
+  const sorted = [...ops].sort((a, b) => a.from - b.from || a.to - b.to);
+  const out: string[] = [];
+  let pos = 0;
+  sorted.forEach((op, i) => {
+    for (const line of op.check) {
+      if (line < 1 || line > lines.length) {
+        throw new Error(`Line ${line} does not exist (file has ${lines.length} lines)`);
+      }
     }
-  };
-
-  const ranges = ops.filter((op) => op.kind === 'range').sort((a, b) => a.start - b.start);
-  ranges.forEach((r, i) => {
-    if (r.start > r.end) {
+    const insert = op.from === op.to;
+    if (insert && op.body.length === 0) throw new Error('insert has no + rows');
+    const previous = sorted[i - 1];
+    if (previous && op.from < previous.to) {
       throw new Error(
-        `Invalid range: start ${r.start}, end ${r.end}. The value after .= is a line number, not a count`,
+        insert
+          ? `${op.text} falls inside ${previous.text}; put the new lines in that range's body`
+          : `${op.text} overlaps ${previous.text}; use one op per range`,
       );
     }
-    checkLine(r.start);
-    checkLine(r.end);
-    const previous = ranges[i - 1];
-    if (previous && r.start <= previous.end) {
-      throw new Error(
-        `range ${r.start}.=${r.end} overlaps range ${previous.start}.=${previous.end}; use one op per range`,
-      );
-    }
+    out.push(...lines.slice(pos, op.from), ...op.body);
+    pos = op.to;
   });
-
-  const gaps = new Map<number, string[]>();
-  for (const op of ops) {
-    if (op.kind === 'range') continue;
-    if (op.body.length === 0) throw new Error('insert has no + rows');
-    let gap: number;
-    if (op.anchor === '$') gap = count;
-    else if (op.before && op.anchor === 1 && count === 0) gap = 0;
-    else {
-      checkLine(op.anchor);
-      gap = op.before ? op.anchor - 1 : op.anchor;
-    }
-    const host = ranges.find((r) => r.start <= gap && gap < r.end);
-    if (host) {
-      throw new Error(
-        `insert falls inside the range ${host.start}.=${host.end}; put the new lines in that range's body`,
-      );
-    }
-    gaps.set(gap, [...(gaps.get(gap) ?? []), ...op.body]);
-  }
-
-  const out: string[] = [...(gaps.get(0) ?? [])];
-  const byStart = new Map(ranges.map((r) => [r.start, r]));
-  for (let line = 1; line <= count;) {
-    const r = byStart.get(line);
-    if (r) {
-      out.push(...r.body, ...(gaps.get(r.end) ?? []));
-      line = r.end + 1;
-      continue;
-    }
-    out.push(lines[line - 1]!, ...(gaps.get(line) ?? []));
-    line++;
-  }
-  return out;
+  return [...out, ...lines.slice(pos)];
 };
