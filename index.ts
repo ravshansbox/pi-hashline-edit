@@ -39,47 +39,47 @@ const parsePatch = (input: string) => {
   let body: string[] | undefined;
 
   input.split('\n').forEach((text) => {
-      if (body && text.startsWith('+')) {
-        body.push(text.slice(1));
-        return;
-      }
-      const trimmed = text.trim();
-      if (trimmed === '') return;
+    if (body && text.startsWith('+')) {
+      body.push(text.slice(1));
+      return;
+    }
+    const trimmed = text.trim();
+    if (trimmed === '') return;
 
-      const header = HEADER.exec(trimmed);
-      if (header) {
-        if (section) throw new Error('edit one file per call');
-        section = { path: header[1]!, tag: header[2]!, ops: [] };
-        return;
-      }
-      const put = PUT.exec(trimmed);
-      if (put) {
-        if (!section) throw new Error(`"${trimmed}" must follow a [PATH#TAG] header`);
-        const [, start, end = start, before, after] = put;
-        const n = Number(start ?? before ?? after);
-        if (start && n > Number(end)) {
-          throw new Error(
-            `Invalid range: start ${start}, end ${end}. The value after .= is a line number, not a count`,
-          );
-        }
-        const [from, to, check] = start
-          ? [n - 1, Number(end), [n, Number(end)]]
-          : before
-            ? [n - 1, n - 1, n === 1 ? [] : [n]]
-            : after === '$'
-              ? [Infinity, Infinity, []]
-              : [n, n, [n]];
-        body = [];
-        section.ops.push({ text: trimmed, from, to, check, body });
-        return;
-      }
-      if (body) {
+    const header = HEADER.exec(trimmed);
+    if (header) {
+      if (section) throw new Error('edit one file per call');
+      section = { path: header[1]!, tag: header[2]!, ops: [] };
+      return;
+    }
+    const put = PUT.exec(trimmed);
+    if (put) {
+      if (!section) throw new Error(`"${trimmed}" must follow a [PATH#TAG] header`);
+      const [, start, end = start, before, after] = put;
+      const n = Number(start ?? before ?? after);
+      if (start && n > Number(end)) {
         throw new Error(
-          `body rows must start with +; got "${text}". Write a literal leading + or - as ++ or +-`,
+          `Invalid range: start ${start}, end ${end}. The value after .= is a line number, not a count`,
         );
       }
-      throw new Error(`unknown operation "${trimmed}"`);
-    });
+      const [from, to, check] = start
+        ? [n - 1, Number(end), [n, Number(end)]]
+        : before
+          ? [n - 1, n - 1, n === 1 ? [] : [n]]
+          : after === '$'
+            ? [Infinity, Infinity, []]
+            : [n, n, [n]];
+      body = [];
+      section.ops.push({ text: trimmed, from, to, check, body });
+      return;
+    }
+    if (body) {
+      throw new Error(
+        `body rows must start with +; got "${text}". Write a literal leading + or - as ++ or +-`,
+      );
+    }
+    throw new Error(`unknown operation "${trimmed}"`);
+  });
 
   if (!section) throw new Error('No [PATH#TAG] header found');
   if (section.ops.length === 0) throw new Error('No operations found');
