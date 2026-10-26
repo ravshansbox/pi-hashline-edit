@@ -13,7 +13,6 @@ import { Type } from 'typebox';
 import {
   applyOps,
   computeTag,
-  formatChanges,
   formatHeader,
   formatRows,
   parseDoc,
@@ -25,7 +24,7 @@ interface EditDetails {
   diff: string;
 }
 
-const EDIT_DESCRIPTION = `Hashline patch for one existing file; create new files with write. The patch starts with [PATH#TAG], where TAG is the 4-hex tag from the latest read or edit response of that file. Line numbers are the original N:LINE numbers from that output, never shifted by earlier ops in the same patch.
+const EDIT_DESCRIPTION = `Hashline patch for one existing file; create new files with write. The patch starts with [PATH#TAG], where TAG is the 4-hex tag from the latest read of that file. Line numbers are the N:LINE numbers from that read, never shifted by earlier ops in the same patch.
 
 Ops:
 - PUT N.=M: replaces lines N to M (inclusive) with the + body. PUT N: is short for PUT N.=N:.
@@ -37,7 +36,7 @@ Rules:
 - Never send - rows, bare context or unchanged lines. Body length does not have to match the range.
 - Touch only changed lines. Split non-adjacent changes into separate ops. Use gap inserts for pure additions.
 - Ranges must not overlap and inserts must not fall inside a range.
-- After every edit the tag and line numbers change: use the header and rows from the edit response, or read again. If a tag is rejected, stop and read again.
+- After every edit the tag and line numbers change: read again before the next edit. If a tag is rejected, stop and read again.
 
 Example:
 [src/app.py#1A2B]
@@ -141,7 +140,7 @@ export default function (pi: ExtensionAPI) {
       'Edit files with hashline patches anchored on [PATH#TAG] headers and N: line numbers from read',
     promptGuidelines: [
       'Read a file before editing it with edit, and copy its [PATH#TAG] header exactly.',
-      'Use edit line numbers from the latest read or edit response only; they change after every edit.',
+      'Use edit line numbers from the latest read only; read again after every edit.',
     ],
     parameters: Type.Object({
       input: Type.String({
@@ -160,20 +159,18 @@ export default function (pi: ExtensionAPI) {
       }
       if (computeTag(raw) !== section.tag) {
         throw new Error(
-          `Edit rejected for ${section.path}: the file changed since it was read (#${section.tag} is not its current tag). Use the header from the last edit response for this file, or read it again, then retry.`,
+          `Edit rejected for ${section.path}: the file changed since it was read (#${section.tag} is not its current tag). Read it again, then retry.`,
         );
       }
       const doc = parseDoc(raw);
-      const applied = applyOps(doc.lines, section.ops);
-      const next = serialiseDoc({ ...doc, lines: applied.lines });
+      const lines = applyOps(doc.lines, section.ops);
+      const next = serialiseDoc({ ...doc, lines });
       if (signal?.aborted) throw new Error('Operation aborted');
       await withFileMutationQueue(absolute, () => writeFile(absolute, next, 'utf8'));
-      const header = formatHeader(section.path, computeTag(next));
-      const changes = formatChanges(applied.lines, applied.changed);
       return {
-        content: [{ type: 'text', text: changes ? `${header}\n${changes}` : header }],
+        content: [{ type: 'text', text: formatHeader(section.path, computeTag(next)) }],
         details: {
-          diff: generateDiffString(doc.lines.join('\n'), applied.lines.join('\n')).diff,
+          diff: generateDiffString(doc.lines.join('\n'), lines.join('\n')).diff,
         } satisfies EditDetails,
       };
     },

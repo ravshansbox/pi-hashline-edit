@@ -82,16 +82,11 @@ test('a lone + writes a blank line and ++ writes a literal +', async () => {
   assert.equal(file('a.txt'), '  indented\n\n+ plus\n- minus\n');
 });
 
-test('the response carries the new header and the changed lines', async () => {
-  const lines = Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join('\n');
-  const { tagOf, edit } = setup({ 'a.txt': `${lines}\n` });
+test('the response is the new header', async () => {
+  const { tagOf, edit } = setup({ 'a.txt': '1\n2\n3\n' });
   const tag = await tagOf('a.txt');
-  const text = await edit(`[a.txt#${tag}]\nPUT 20:\n+TWENTY`);
-  const newTag = await tagOf('a.txt');
-  assert.equal(
-    text,
-    `[a.txt#${newTag}]\n18:line 18\n19:line 19\n20:TWENTY\n21:line 21\n22:line 22`,
-  );
+  const text = await edit(`[a.txt#${tag}]\nPUT 2:\n+two`);
+  assert.equal(text, `[a.txt#${await tagOf('a.txt')}]`);
 });
 
 test('a stale tag is rejected and the file is left alone', async () => {

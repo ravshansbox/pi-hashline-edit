@@ -38,7 +38,7 @@ Ops:
 - `PUT <N:` inserts before line N, `PUT >N:` after it, `PUT >$:` at the end.
 - `CUT N.=M` or `CUT N` deletes lines.
 
-Line numbers always refer to the file as it was read. `edit` rejects the patch when its tag no longer matches the file, so the model has to read again instead of editing stale lines. The response gives the new header and the changed lines with two lines of context, so the model can chain edits without reading again.
+Line numbers always refer to the file as it was read. `edit` rejects the patch when its tag no longer matches the file, so the model has to read again instead of editing stale lines. The response gives only the new header, so the model reads again before the next edit.
 
 All ops are checked before the file is written. Line endings, a byte order mark and a missing final newline are kept.
 

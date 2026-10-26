@@ -17,11 +17,6 @@ export interface Doc {
   finalNewline: boolean;
 }
 
-export interface Applied {
-  lines: string[];
-  changed: number[];
-}
-
 const BOM = '\uFEFF';
 const HEADER = /^\[(.+)#([0-9A-Fa-f]{4})\]$/;
 const BAD_HEADER = /^\[.+\]$/;
@@ -136,7 +131,7 @@ export const parsePatch = (input: string): Section => {
   return section;
 };
 
-export const applyOps = (lines: readonly string[], ops: readonly Op[]): Applied => {
+export const applyOps = (lines: readonly string[], ops: readonly Op[]): string[] => {
   const count = lines.length;
   const checkLine = (op: Op, line: number) => {
     if (line < 1 || line > count) {
@@ -181,41 +176,17 @@ export const applyOps = (lines: readonly string[], ops: readonly Op[]): Applied 
     gaps.set(gap, [...(gaps.get(gap) ?? []), ...op.body]);
   }
 
-  const out: string[] = [];
-  const changed: number[] = [];
-  const emit = (rows: readonly string[]) => {
-    for (const row of rows) {
-      changed.push(out.length);
-      out.push(row);
-    }
-  };
+  const out: string[] = [...(gaps.get(0) ?? [])];
   const byStart = new Map(ranges.map((r) => [r.start, r]));
-  emit(gaps.get(0) ?? []);
   for (let line = 1; line <= count;) {
     const r = byStart.get(line);
     if (r) {
-      if (r.body.length === 0) changed.push(out.length);
-      emit(r.body);
-      emit(gaps.get(r.end) ?? []);
+      out.push(...r.body, ...(gaps.get(r.end) ?? []));
       line = r.end + 1;
       continue;
     }
-    out.push(lines[line - 1]!);
-    emit(gaps.get(line) ?? []);
+    out.push(lines[line - 1]!, ...(gaps.get(line) ?? []));
     line++;
   }
-  return { lines: out, changed };
-};
-
-export const formatChanges = (lines: readonly string[], changed: readonly number[]): string => {
-  const shown = new Set<number>();
-  for (const index of changed) {
-    for (let k = index - 2; k <= index + 2; k++) {
-      if (k >= 0 && k < lines.length) shown.add(k);
-    }
-  }
-  return [...shown]
-    .sort((a, b) => a - b)
-    .map((k) => `${k + 1}:${lines[k]}`)
-    .join('\n');
+  return out;
 };
