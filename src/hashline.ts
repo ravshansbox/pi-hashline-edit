@@ -33,9 +33,9 @@ export const formatRows = (lines: readonly string[], start: number): string =>
 
 export const parseDoc = (raw: string): Doc => {
   const eol = raw.includes('\r\n') ? '\r\n' : '\n';
-  const lf = raw.replaceAll('\r\n', '\n');
-  const finalNewline = lf === '' || lf.endsWith('\n');
-  const lines = lf === '' ? [] : (finalNewline ? lf.slice(0, -1) : lf).split('\n');
+  const lines = raw.split(/\r?\n/);
+  const finalNewline = lines.at(-1) === '';
+  if (finalNewline) lines.pop();
   return { eol, lines, finalNewline };
 };
 
