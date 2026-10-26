@@ -211,7 +211,7 @@ const headerPaths = (input: unknown): string[] =>
     ? [...input.matchAll(/^\s*\[(.+)#[0-9A-Fa-f]{0,4}\]?\s*$/gm)].map((m) => m[1]!)
     : [];
 
-export default function hashlineEdit(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
   const builtinRead = createReadToolDefinition(process.cwd());
 
   pi.registerTool({
