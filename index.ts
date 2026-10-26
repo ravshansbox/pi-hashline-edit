@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import {
   createReadToolDefinition,
   type ExtensionAPI,
@@ -43,11 +43,6 @@ const resolvePath = (path: string, cwd: string): string => {
   if (clean === '~') return homedir();
   if (clean.startsWith('~/')) return resolve(homedir(), clean.slice(2));
   return resolve(cwd, clean);
-};
-
-const displayPath = (absolute: string, cwd: string): string => {
-  const rel = relative(cwd, absolute);
-  return rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : absolute;
 };
 
 const textOf = (content: readonly { type: string; text?: string }[]): string | undefined => {
@@ -103,14 +98,7 @@ export default function (pi: ExtensionAPI) {
         return result;
       }
       const truncated = details?.truncation?.truncated ? details.truncation.outputLines : undefined;
-      const text = toHashline(
-        output,
-        raw,
-        displayPath(absolute, ctx.cwd),
-        params.offset,
-        params.limit,
-        truncated,
-      );
+      const text = toHashline(output, raw, params.path, params.offset, params.limit, truncated);
       if (text === undefined) return result;
       return { ...result, content: [{ type: 'text', text }], structuredContent: text };
     },
