@@ -71,10 +71,7 @@ const toHashline = (
   if (!output.startsWith(body)) return undefined;
   const rest = output.slice(body.length);
   const rows = start + count === all.length && raw.endsWith('\n') ? shown.slice(0, -1) : shown;
-  const clean = rows.map((row, i) => {
-    const line = row.endsWith('\r') ? row.slice(0, -1) : row;
-    return start + i === 0 && line.startsWith('\uFEFF') ? line.slice(1) : line;
-  });
+  const clean = rows.map((row) => (row.endsWith('\r') ? row.slice(0, -1) : row));
   const numbered = formatRows(clean, start + 1);
   return `${formatHeader(path, computeTag(raw))}${numbered ? `\n${numbered}` : ''}${rest}`;
 };

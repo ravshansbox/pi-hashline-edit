@@ -11,13 +11,11 @@ export interface Section {
 }
 
 export interface Doc {
-  bom: string;
   eol: string;
   lines: string[];
   finalNewline: boolean;
 }
 
-const BOM = '\uFEFF';
 const HEADER = /^\[(.+)#([0-9A-Fa-f]{4})\]$/;
 const BAD_HEADER = /^\[.+\]$/;
 const PUT_RANGE = /^PUT (\d+)(?:\.=(\d+))?:$/;
@@ -32,17 +30,15 @@ export const formatRows = (lines: readonly string[], start: number): string =>
   lines.map((line, i) => `${start + i}:${line}`).join('\n');
 
 export const parseDoc = (raw: string): Doc => {
-  const bom = raw.startsWith(BOM) ? BOM : '';
-  const text = raw.slice(bom.length);
-  const eol = text.includes('\r\n') ? '\r\n' : '\n';
-  const lf = text.replaceAll('\r\n', '\n');
+  const eol = raw.includes('\r\n') ? '\r\n' : '\n';
+  const lf = raw.replaceAll('\r\n', '\n');
   const finalNewline = lf === '' || lf.endsWith('\n');
   const lines = lf === '' ? [] : (finalNewline ? lf.slice(0, -1) : lf).split('\n');
-  return { bom, eol, lines, finalNewline };
+  return { eol, lines, finalNewline };
 };
 
 export const serialiseDoc = (doc: Doc): string =>
-  doc.bom + doc.lines.join(doc.eol) + (doc.finalNewline && doc.lines.length > 0 ? doc.eol : '');
+  doc.lines.join(doc.eol) + (doc.finalNewline && doc.lines.length > 0 ? doc.eol : '');
 
 export const parsePatch = (input: string): Section => {
   let section: Section | undefined;

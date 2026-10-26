@@ -152,9 +152,9 @@ test('a missing file points at the write tool', async () => {
   await assert.rejects(edit('[new.txt#0000]\nPUT >$:\n+hi'), /write tool/);
 });
 
-test('CRLF line endings, a BOM and a missing final newline are kept', async () => {
-  const { tagOf, edit, file } = setup({ 'a.txt': '\uFEFFa\r\nb\r\nc' });
+test('CRLF line endings and a missing final newline are kept', async () => {
+  const { tagOf, edit, file } = setup({ 'a.txt': 'a\r\nb\r\nc' });
   const tag = await tagOf('a.txt');
   await edit(`[a.txt#${tag}]\nPUT 2:\n+B\nPUT >$:\n+d`);
-  assert.equal(file('a.txt'), '\uFEFFa\r\nB\r\nc\r\nd');
+  assert.equal(file('a.txt'), 'a\r\nB\r\nc\r\nd');
 });

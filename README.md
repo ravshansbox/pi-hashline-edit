@@ -39,11 +39,12 @@ Ops:
 
 Line numbers always refer to the file as it was read. `edit` rejects the patch when its tag no longer matches the file, so the model has to read again instead of editing stale lines. The response gives only the new header, so the model reads again before the next edit.
 
-All ops are checked before the file is written. Line endings, a byte order mark and a missing final newline are kept.
+All ops are checked before the file is written. Line endings and a missing final newline are kept.
 
 ### Differences from oh-my-pi
 
 - No `CUT`; use `PUT` with no body.
+- No byte order mark handling: it shows as part of line 1.
 - No syntax-block ops (`PUT N*:`).
 - No registers (`PUT … @name`).
 - No file ops (`REM`, `MV`).
