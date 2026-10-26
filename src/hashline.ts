@@ -8,8 +8,6 @@ export interface Section {
   path: string;
   tag: string;
   ops: Op[];
-  remove: boolean;
-  moveTo: string | undefined;
   warnings: string[];
 }
 
@@ -31,7 +29,6 @@ const BAD_HEADER = /^\[.+\]$/;
 const PUT_RANGE = /^PUT (\d+)(?:\.=(\d+))?:$/;
 const PUT_GAP = /^PUT ([<>])(\d+|\$):$/;
 const CUT = /^CUT (\d+)(?:\.=(\d+))?$/;
-const MV = /^MV (.+)$/;
 const PATCH_MARKER = /^\*\*\* (Begin|End) Patch$/;
 const UNSUPPORTED = /^(PUT|CUT) .*[*@]/;
 
@@ -56,12 +53,6 @@ export const parseDoc = (raw: string): Doc => {
 export const serialiseDoc = (doc: Doc): string =>
   doc.bom + doc.lines.join(doc.eol) + (doc.finalNewline && doc.lines.length > 0 ? doc.eol : '');
 
-const unquote = (value: string): string => {
-  const trimmed = value.trim();
-  const quoted = /^(["'])(.*)\1$/.exec(trimmed);
-  return quoted ? quoted[2]! : trimmed;
-};
-
 export const parsePatch = (input: string): Section[] => {
   const sections: Section[] = [];
   let section: Section | undefined;
@@ -81,11 +72,7 @@ export const parsePatch = (input: string): Section[] => {
     return section;
   };
   const addOp = (row: number, text: string, op: Op) => {
-    const target = current(row, text);
-    if (target.remove || target.moveTo !== undefined) {
-      throw new Error(`line ${row}: no operations may follow REM or MV in a section`);
-    }
-    target.ops.push(op);
+    current(row, text).ops.push(op);
     body = op.body;
   };
 
@@ -112,8 +99,6 @@ export const parsePatch = (input: string): Section[] => {
           path: header[1]!,
           tag: header[2]!.toUpperCase(),
           ops: [],
-          remove: false,
-          moveTo: undefined,
           warnings: [],
         };
         sections.push(section);
@@ -165,25 +150,6 @@ export const parsePatch = (input: string): Section[] => {
         body = undefined;
         return;
       }
-      if (trimmed === 'REM') {
-        const target = current(row, trimmed);
-        if (target.ops.length > 0 || target.moveTo !== undefined) {
-          throw new Error(`line ${row}: REM must be the only operation in its section`);
-        }
-        target.remove = true;
-        body = undefined;
-        return;
-      }
-      const mv = MV.exec(trimmed);
-      if (mv) {
-        const target = current(row, trimmed);
-        if (target.remove || target.moveTo !== undefined) {
-          throw new Error(`line ${row}: a section may have only one REM or MV`);
-        }
-        target.moveTo = unquote(mv[1]!);
-        body = undefined;
-        return;
-      }
       if (UNSUPPORTED.test(trimmed)) {
         throw new Error(
           `line ${row}: "${trimmed}" is not supported; block ops (N*) and registers (@name) are not available, use line ranges`,
@@ -200,7 +166,7 @@ export const parsePatch = (input: string): Section[] => {
 
   if (sections.length === 0) throw new Error('No [PATH#TAG] section found');
   for (const s of sections) {
-    if (s.ops.length === 0 && !s.remove && s.moveTo === undefined) {
+    if (s.ops.length === 0) {
       throw new Error(`${s.path}: section has no operations`);
     }
   }

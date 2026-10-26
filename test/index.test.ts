@@ -171,19 +171,3 @@ test('CRLF line endings, a BOM and a missing final newline are kept', async () =
   await edit(`[a.txt#${tag}]\nPUT 2:\n+B\nPUT >$:\n+d`);
   assert.equal(file('a.txt'), '\uFEFFa\r\nB\r\nc\r\nd');
 });
-
-test('REM deletes the file', async () => {
-  const { tagOf, edit, exists } = setup({ 'a.txt': 'a\n' });
-  const tag = await tagOf('a.txt');
-  assert.equal(await edit(`[a.txt#${tag}]\nREM`), 'Deleted a.txt');
-  assert.equal(exists('a.txt'), false);
-});
-
-test('MV moves the file after the section edits', async () => {
-  const { tagOf, edit, file, exists } = setup({ 'a.txt': 'a\nb\n' });
-  const tag = await tagOf('a.txt');
-  const text = await edit(`[a.txt#${tag}]\nPUT 1:\n+A\nMV "sub dir/b.txt"`);
-  assert.equal(exists('a.txt'), false);
-  assert.equal(file('sub dir/b.txt'), 'A\nb\n');
-  assert.match(text, /^\[sub dir\/b\.txt#[0-9A-F]{4}\]\nMoved to sub dir\/b\.txt\n1:A\n2:b$/);
-});

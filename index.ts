@@ -1,6 +1,6 @@
-import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import {
   createReadToolDefinition,
   type ExtensionAPI,
@@ -29,8 +29,7 @@ interface Plan {
   path: string;
   absolute: string;
   raw: string;
-  next: string | undefined;
-  moveTo: { path: string; absolute: string } | undefined;
+  next: string;
   text: string;
   diff: string;
 }
@@ -41,7 +40,6 @@ Ops:
 - PUT N.=M: replaces lines N to M (inclusive) with the + body. PUT N: is short for PUT N.=N:.
 - PUT <N: inserts before line N, PUT >N: inserts after line N, PUT >$: appends.
 - CUT N.=M (or CUT N) deletes lines.
-- REM deletes the file. MV DEST moves it after the section's other ops (quote paths with spaces).
 
 Rules:
 - Body rows start with +. A lone + writes a blank line. The rest of the row is written verbatim, including indentation. Write a literal leading + or - as ++ or +-.
@@ -128,19 +126,6 @@ const plan = async (input: string, cwd: string): Promise<Plan[]> => {
       );
     }
 
-    if (section.remove) {
-      plans.push({
-        path: section.path,
-        absolute,
-        raw,
-        next: undefined,
-        moveTo: undefined,
-        text: `Deleted ${section.path}`,
-        diff: generateDiffString(parseDoc(raw).lines.join('\n'), '').diff,
-      });
-      continue;
-    }
-
     const doc = parseDoc(raw);
     let applied;
     try {
@@ -150,23 +135,7 @@ const plan = async (input: string, cwd: string): Promise<Plan[]> => {
     }
     const next = serialiseDoc({ ...doc, lines: applied.lines });
 
-    let moveTo: Plan['moveTo'];
-    if (section.moveTo !== undefined) {
-      const target = resolvePath(section.moveTo, cwd);
-      if (claimed.has(target))
-        throw new Error(`${section.path}: MV target ${section.moveTo} is also edited`);
-      const exists = await access(target).then(
-        () => true,
-        () => false,
-      );
-      if (exists) throw new Error(`${section.path}: MV target ${section.moveTo} already exists`);
-      claimed.add(target);
-      moveTo = { path: section.moveTo, absolute: target };
-    }
-
-    const shownPath = moveTo?.path ?? section.path;
-    const parts = [formatHeader(shownPath, computeTag(next))];
-    if (moveTo) parts.push(`Moved to ${moveTo.path}`);
+    const parts = [formatHeader(section.path, computeTag(next))];
     const changes = formatChanges(applied.lines, applied.changed);
     if (changes) parts.push(changes);
     let text = parts.join('\n');
@@ -177,7 +146,6 @@ const plan = async (input: string, cwd: string): Promise<Plan[]> => {
       absolute,
       raw,
       next,
-      moveTo,
       text,
       diff: generateDiffString(doc.lines.join('\n'), applied.lines.join('\n')).diff,
     });
@@ -192,16 +160,6 @@ const commit = (item: Plan): Promise<void> =>
       throw new Error(
         `Edit rejected for ${item.path}: the file changed during the edit. Read it again.`,
       );
-    }
-    if (item.next === undefined) {
-      await rm(item.absolute);
-      return;
-    }
-    if (item.moveTo) {
-      await mkdir(dirname(item.moveTo.absolute), { recursive: true });
-      await writeFile(item.moveTo.absolute, item.next, 'utf8');
-      await rm(item.absolute);
-      return;
     }
     await writeFile(item.absolute, item.next, 'utf8');
   });
@@ -276,7 +234,7 @@ export default function (pi: ExtensionAPI) {
       return {
         content: [{ type: 'text', text: plans.map((p) => p.text).join('\n\n') }],
         details: {
-          files: plans.map((p) => ({ path: p.moveTo?.path ?? p.path, diff: p.diff })),
+          files: plans.map((p) => ({ path: p.path, diff: p.diff })),
         } satisfies EditDetails,
       };
     },

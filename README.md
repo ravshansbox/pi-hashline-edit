@@ -37,7 +37,6 @@ Ops:
 - `PUT N.=M:` replaces lines N to M with the `+` body. `PUT N:` replaces one line.
 - `PUT <N:` inserts before line N, `PUT >N:` after it, `PUT >$:` at the end.
 - `CUT N.=M` or `CUT N` deletes lines.
-- `REM` deletes the file. `MV DEST` moves it after the section's other ops.
 
 Line numbers always refer to the file as it was read. `edit` rejects a section when its tag no longer matches the file, so the model has to read again instead of editing stale lines. The response gives the new header and the changed lines with two lines of context, so the model can chain edits without reading again.
 
@@ -47,6 +46,7 @@ All sections are checked before any file is written. Line endings, a byte order 
 
 - No syntax-block ops (`PUT N*:`, `CUT N*`).
 - No registers (`CUT … @name`, `PUT … @name`).
+- No file ops (`REM`, `MV`).
 - No recovery from stale tags using earlier snapshots.
 - No check that edited lines were shown by `read`.
 - Tags use a different hash, so they do not match oh-my-pi's.
