@@ -99,10 +99,6 @@ export default function (pi: ExtensionAPI) {
     description: EDIT_DESCRIPTION,
     promptSnippet:
       'Edit files with hashline patches anchored on [PATH#TAG] headers and N: line numbers from read',
-    promptGuidelines: [
-      'Read a file before editing it with edit, and copy its [PATH#TAG] header exactly.',
-      'Use edit line numbers from the latest read only; read again after every edit.',
-    ],
     parameters: Type.Object({
       input: Type.String({
         description: 'Hashline patch: a [PATH#TAG] header followed by ops',
