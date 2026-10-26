@@ -22,18 +22,10 @@ import {
 } from './src/hashline.ts';
 
 interface EditDetails {
-  files: { path: string; diff: string }[];
-}
-
-interface Plan {
-  path: string;
-  absolute: string;
-  next: string;
-  text: string;
   diff: string;
 }
 
-const EDIT_DESCRIPTION = `Hashline patches for existing files; create new files with write. Each file section starts with [PATH#TAG], where TAG is the 4-hex tag from the latest read or edit response of that file. Line numbers are the original N:LINE numbers from that output, never shifted by earlier ops in the same section.
+const EDIT_DESCRIPTION = `Hashline patch for one existing file; create new files with write. The patch starts with [PATH#TAG], where TAG is the 4-hex tag from the latest read or edit response of that file. Line numbers are the original N:LINE numbers from that output, never shifted by earlier ops in the same patch.
 
 Ops:
 - PUT N.=M: replaces lines N to M (inclusive) with the + body. PUT N: is short for PUT N.=N:.
@@ -53,10 +45,7 @@ PUT 3.=4:
 +def greet(name):
 +    print(name)
 PUT >$:
-+greet("world")
-[README.md#3C4D]
-PUT <1:
-+# Title`;
++greet("world")`;
 
 const resolvePath = (path: string, cwd: string): string => {
   const clean = path.startsWith('@') ? path.slice(1) : path;
@@ -98,60 +87,6 @@ const toHashline = (
   const numbered = formatRows(clean, start + 1);
   return `${formatHeader(path, computeTag(raw))}${numbered ? `\n${numbered}` : ''}${rest}`;
 };
-
-const describeFailure = (path: string, error: unknown): Error =>
-  new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`);
-
-const plan = async (input: string, cwd: string): Promise<Plan[]> => {
-  const sections = parsePatch(input);
-  const claimed = new Set<string>();
-  const plans: Plan[] = [];
-  for (const section of sections) {
-    const absolute = resolvePath(section.path, cwd);
-    if (claimed.has(absolute)) {
-      throw new Error(`${section.path}: appears in more than one section; merge them into one`);
-    }
-    claimed.add(absolute);
-
-    let raw: string;
-    try {
-      raw = await readFile(absolute, 'utf8');
-    } catch {
-      throw new Error(`File not found: ${section.path}. Use the write tool to create new files.`);
-    }
-    if (computeTag(raw) !== section.tag) {
-      throw new Error(
-        `Edit rejected for ${section.path}: the file changed since it was read (#${section.tag} is not its current tag). Use the header from the last edit response for this file, or read it again, then retry.`,
-      );
-    }
-
-    const doc = parseDoc(raw);
-    let applied;
-    try {
-      applied = applyOps(doc.lines, section.ops);
-    } catch (error) {
-      throw describeFailure(section.path, error);
-    }
-    const next = serialiseDoc({ ...doc, lines: applied.lines });
-
-    const parts = [formatHeader(section.path, computeTag(next))];
-    const changes = formatChanges(applied.lines, applied.changed);
-    if (changes) parts.push(changes);
-    const text = parts.join('\n');
-
-    plans.push({
-      path: section.path,
-      absolute,
-      next,
-      text,
-      diff: generateDiffString(doc.lines.join('\n'), applied.lines.join('\n')).diff,
-    });
-  }
-  return plans;
-};
-
-const commit = (item: Plan): Promise<void> =>
-  withFileMutationQueue(item.absolute, () => writeFile(item.absolute, item.next, 'utf8'));
 
 const headerPaths = (input: unknown): string[] =>
   typeof input === 'string'
@@ -210,20 +145,35 @@ export default function (pi: ExtensionAPI) {
     ],
     parameters: Type.Object({
       input: Type.String({
-        description: 'Hashline patch: one or more [PATH#TAG] sections, each followed by ops',
+        description: 'Hashline patch: a [PATH#TAG] header followed by ops',
       }),
     }),
     executionMode: 'sequential',
     async execute(_toolCallId, { input }, signal, _onUpdate, ctx) {
-      const plans = await plan(input, ctx.cwd);
-      for (const item of plans) {
-        if (signal?.aborted) throw new Error('Operation aborted');
-        await commit(item);
+      const section = parsePatch(input);
+      const absolute = resolvePath(section.path, ctx.cwd);
+      let raw: string;
+      try {
+        raw = await readFile(absolute, 'utf8');
+      } catch {
+        throw new Error(`File not found: ${section.path}. Use the write tool to create new files.`);
       }
+      if (computeTag(raw) !== section.tag) {
+        throw new Error(
+          `Edit rejected for ${section.path}: the file changed since it was read (#${section.tag} is not its current tag). Use the header from the last edit response for this file, or read it again, then retry.`,
+        );
+      }
+      const doc = parseDoc(raw);
+      const applied = applyOps(doc.lines, section.ops);
+      const next = serialiseDoc({ ...doc, lines: applied.lines });
+      if (signal?.aborted) throw new Error('Operation aborted');
+      await withFileMutationQueue(absolute, () => writeFile(absolute, next, 'utf8'));
+      const header = formatHeader(section.path, computeTag(next));
+      const changes = formatChanges(applied.lines, applied.changed);
       return {
-        content: [{ type: 'text', text: plans.map((p) => p.text).join('\n\n') }],
+        content: [{ type: 'text', text: changes ? `${header}\n${changes}` : header }],
         details: {
-          files: plans.map((p) => ({ path: p.path, diff: p.diff })),
+          diff: generateDiffString(doc.lines.join('\n'), applied.lines.join('\n')).diff,
         } satisfies EditDetails,
       };
     },
@@ -236,15 +186,8 @@ export default function (pi: ExtensionAPI) {
       if (context.isError) {
         return new Text(theme.fg('error', textOf(result.content) ?? ''), 0, 0);
       }
-      const files = (result.details as EditDetails | undefined)?.files ?? [];
-      const body = files
-        .map((file) =>
-          files.length > 1
-            ? `${theme.fg('accent', file.path)}\n${renderDiff(file.diff)}`
-            : renderDiff(file.diff),
-        )
-        .join('\n\n');
-      return new Text(body, 0, 0);
+      const diff = (result.details as EditDetails | undefined)?.diff ?? '';
+      return new Text(renderDiff(diff), 0, 0);
     },
   });
 }

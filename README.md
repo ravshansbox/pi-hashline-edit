@@ -22,7 +22,7 @@ It replaces the built-in `read` and `edit` tools with hashline versions, modelle
 2:    print("hi")
 ```
 
-`edit` takes one `input` string with one section per file:
+`edit` takes one `input` string that edits one file:
 
 ```text
 [src/app.py#1A2B]
@@ -38,15 +38,16 @@ Ops:
 - `PUT <N:` inserts before line N, `PUT >N:` after it, `PUT >$:` at the end.
 - `CUT N.=M` or `CUT N` deletes lines.
 
-Line numbers always refer to the file as it was read. `edit` rejects a section when its tag no longer matches the file, so the model has to read again instead of editing stale lines. The response gives the new header and the changed lines with two lines of context, so the model can chain edits without reading again.
+Line numbers always refer to the file as it was read. `edit` rejects the patch when its tag no longer matches the file, so the model has to read again instead of editing stale lines. The response gives the new header and the changed lines with two lines of context, so the model can chain edits without reading again.
 
-All sections are checked before any file is written. Line endings, a byte order mark and a missing final newline are kept.
+All ops are checked before the file is written. Line endings, a byte order mark and a missing final newline are kept.
 
 ### Differences from oh-my-pi
 
 - No syntax-block ops (`PUT N*:`, `CUT N*`).
 - No registers (`CUT … @name`, `PUT … @name`).
 - No file ops (`REM`, `MV`).
+- One file per call.
 - No recovery from stale tags using earlier snapshots.
 - No check that edited lines were shown by `read`.
 - Tags use a different hash, so they do not match oh-my-pi's.

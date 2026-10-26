@@ -50,8 +50,7 @@ export const parseDoc = (raw: string): Doc => {
 export const serialiseDoc = (doc: Doc): string =>
   doc.bom + doc.lines.join(doc.eol) + (doc.finalNewline && doc.lines.length > 0 ? doc.eol : '');
 
-export const parsePatch = (input: string): Section[] => {
-  const sections: Section[] = [];
+export const parsePatch = (input: string): Section => {
   let section: Section | undefined;
   let body: string[] | undefined;
   const current = (row: number, text: string): Section => {
@@ -77,9 +76,8 @@ export const parsePatch = (input: string): Section[] => {
 
       const header = HEADER.exec(trimmed);
       if (header) {
+        if (section) throw new Error(`line ${row}: edit one file per call`);
         section = { path: header[1]!, tag: header[2]!.toUpperCase(), ops: [] };
-        sections.push(section);
-        body = undefined;
         return;
       }
       if (BAD_HEADER.test(trimmed)) {
@@ -133,13 +131,9 @@ export const parsePatch = (input: string): Section[] => {
       throw new Error(`line ${row}: unknown operation "${trimmed}"`);
     });
 
-  if (sections.length === 0) throw new Error('No [PATH#TAG] section found');
-  for (const s of sections) {
-    if (s.ops.length === 0) {
-      throw new Error(`${s.path}: section has no operations`);
-    }
-  }
-  return sections;
+  if (!section) throw new Error('No [PATH#TAG] header found');
+  if (section.ops.length === 0) throw new Error('No operations found');
+  return section;
 };
 
 export const applyOps = (lines: readonly string[], ops: readonly Op[]): Applied => {

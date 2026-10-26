@@ -102,23 +102,15 @@ test('a stale tag is rejected and the file is left alone', async () => {
   assert.equal(file('a.txt'), 'uno\n');
 });
 
-test('an error in one section leaves every file alone', async () => {
+test('a second file section is rejected and no file is changed', async () => {
   const { tagOf, edit, file } = setup({ 'a.txt': 'a\n', 'b.txt': 'b\n' });
   const a = await tagOf('a.txt');
   const b = await tagOf('b.txt');
   await assert.rejects(
-    edit(`[a.txt#${a}]\nPUT 1:\n+A\n[b.txt#${b}]\nPUT 9:\n+B`),
-    /Line 9 does not exist/,
+    edit(`[a.txt#${a}]\nPUT 1:\n+A\n[b.txt#${b}]\nPUT 1:\n+B`),
+    /one file per call/,
   );
-  assert.equal(file('a.txt'), 'a\n');
-});
-
-test('one call edits several files', async () => {
-  const { tagOf, edit, file } = setup({ 'a.txt': 'a\n', 'b.txt': 'b\n' });
-  const a = await tagOf('a.txt');
-  const b = await tagOf('b.txt');
-  await edit(`[a.txt#${a}]\nPUT 1:\n+A\n[b.txt#${b}]\nPUT 1:\n+B`);
-  assert.equal(file('a.txt') + file('b.txt'), 'A\nB\n');
+  assert.equal(file('a.txt') + file('b.txt'), 'a\nb\n');
 });
 
 test('overlapping ranges are rejected', async () => {
