@@ -4,11 +4,8 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import {
   createReadToolDefinition,
   type ExtensionAPI,
-  generateDiffString,
-  renderDiff,
   withFileMutationQueue,
 } from '@earendil-works/pi-coding-agent';
-import { Text } from '@earendil-works/pi-tui';
 import { Type } from 'typebox';
 import {
   applyOps,
@@ -19,10 +16,6 @@ import {
   parsePatch,
   serialiseDoc,
 } from './src/hashline.ts';
-
-interface EditDetails {
-  diff: string;
-}
 
 const EDIT_DESCRIPTION = `Hashline patch for one existing file; create new files with write. The patch starts with [PATH#TAG], where TAG is the 4-hex tag from the latest read of that file. Line numbers are the N:LINE numbers from that read, never shifted by earlier ops in the same patch.
 
@@ -86,11 +79,6 @@ const toHashline = (
   const numbered = formatRows(clean, start + 1);
   return `${formatHeader(path, computeTag(raw))}${numbered ? `\n${numbered}` : ''}${rest}`;
 };
-
-const headerPaths = (input: unknown): string[] =>
-  typeof input === 'string'
-    ? [...input.matchAll(/^\s*\[(.+)#[0-9A-Fa-f]{0,4}\]?\s*$/gm)].map((m) => m[1]!)
-    : [];
 
 export default function (pi: ExtensionAPI) {
   const builtinRead = createReadToolDefinition(process.cwd());
@@ -169,22 +157,8 @@ export default function (pi: ExtensionAPI) {
       await withFileMutationQueue(absolute, () => writeFile(absolute, next, 'utf8'));
       return {
         content: [{ type: 'text', text: formatHeader(section.path, computeTag(next)) }],
-        details: {
-          diff: generateDiffString(doc.lines.join('\n'), lines.join('\n')).diff,
-        } satisfies EditDetails,
+        details: undefined,
       };
-    },
-    renderCall(args, theme) {
-      const paths = headerPaths(args.input);
-      const label = paths.length > 0 ? ` ${theme.fg('accent', paths.join(', '))}` : '';
-      return new Text(`${theme.fg('toolTitle', theme.bold('edit'))}${label}`, 0, 0);
-    },
-    renderResult(result, _options, theme, context) {
-      if (context.isError) {
-        return new Text(theme.fg('error', textOf(result.content) ?? ''), 0, 0);
-      }
-      const diff = (result.details as EditDetails | undefined)?.diff ?? '';
-      return new Text(renderDiff(diff), 0, 0);
     },
   });
 }
