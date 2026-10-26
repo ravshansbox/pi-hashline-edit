@@ -122,14 +122,12 @@ const toHashline = (
   offset: number | undefined,
   limit: number | undefined,
   truncatedLines: number | undefined,
-): string | undefined => {
+): string => {
   const all = raw.split('\n');
   const start = offset ? Math.max(0, offset - 1) : 0;
   const count = truncatedLines ?? Math.min(limit ?? all.length - start, all.length - start);
   const shown = all.slice(start, start + count);
-  const body = shown.join('\n');
-  if (!output.startsWith(body)) return undefined;
-  const rest = output.slice(body.length);
+  const rest = output.slice(shown.join('\n').length);
   const rows = start + count === all.length && raw.endsWith('\n') ? shown.slice(0, -1) : shown;
   const clean = rows.map((row) => (row.endsWith('\r') ? row.slice(0, -1) : row));
   const numbered = clean.map((row, i) => `${start + 1 + i}:${row}`).join('\n');
@@ -158,7 +156,6 @@ export default function (pi: ExtensionAPI) {
       }
       const truncated = truncation?.truncated ? truncation.outputLines : undefined;
       const text = toHashline(first.text, raw, params.path, params.offset, params.limit, truncated);
-      if (text === undefined) return result;
       return { ...result, content: [{ type: 'text', text }], structuredContent: text };
     },
   });
