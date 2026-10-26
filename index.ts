@@ -58,9 +58,7 @@ const parsePatch = (input: string) => {
       const [, start, end = start, before, after] = put;
       const n = Number(start ?? before ?? after);
       if (start && n > Number(end)) {
-        throw new Error(
-          `Invalid range: start ${start}, end ${end}. The value after .= is a line number, not a count`,
-        );
+        throw new Error(`Invalid range: start ${start}, end ${end}`);
       }
       const [from, to, check] = start
         ? [n - 1, Number(end), [n, Number(end)]]
