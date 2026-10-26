@@ -17,18 +17,13 @@ import {
   serialiseDoc,
 } from './src/hashline.ts';
 
-const EDIT_DESCRIPTION = `Hashline patch for one existing file; create new files with write. The patch starts with [PATH#TAG], where TAG is the 4-hex tag from the latest read of that file. Line numbers are the N:LINE numbers from that read, never shifted by earlier ops in the same patch.
+const EDIT_DESCRIPTION = `Hashline patch for one existing file; create new files with write. Start with the [PATH#TAG] header from the latest read. Line numbers are from that read and are not shifted by earlier ops.
 
-Ops:
-- PUT N.=M: replaces lines N to M (inclusive) with the + body; no body deletes them. PUT N: is short for PUT N.=N:.
-- PUT <N: inserts before line N, PUT >N: inserts after line N, PUT >$: appends.
-
-Rules:
-- Body rows start with +. A lone + writes a blank line. The rest of the row is written verbatim, including indentation. Write a literal leading + or - as ++ or +-.
-- Never send - rows, bare context or unchanged lines. Body length does not have to match the range.
-- Touch only changed lines. Split non-adjacent changes into separate ops. Use gap inserts for pure additions.
-- Ranges must not overlap and inserts must not fall inside a range.
-- After every edit the tag and line numbers change: read again before the next edit. If a tag is rejected, stop and read again.
+- PUT N.=M: replaces lines N to M with the + body; no body deletes them. PUT N: means PUT N.=N:.
+- PUT <N: inserts before line N, PUT >N: after it, PUT >$: at the end.
+- Each body row is + followed by the line verbatim; a lone + is a blank line. No - rows or context.
+- Change only the lines you need. Ranges must not overlap and inserts must not fall inside a range.
+- Read again after every edit or rejected tag.
 
 Example:
 [src/app.py#1A2B]
