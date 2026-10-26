@@ -28,7 +28,6 @@ interface EditDetails {
 interface Plan {
   path: string;
   absolute: string;
-  raw: string;
   next: string;
   text: string;
   diff: string;
@@ -143,7 +142,6 @@ const plan = async (input: string, cwd: string): Promise<Plan[]> => {
     plans.push({
       path: section.path,
       absolute,
-      raw,
       next,
       text,
       diff: generateDiffString(doc.lines.join('\n'), applied.lines.join('\n')).diff,
@@ -153,15 +151,7 @@ const plan = async (input: string, cwd: string): Promise<Plan[]> => {
 };
 
 const commit = (item: Plan): Promise<void> =>
-  withFileMutationQueue(item.absolute, async () => {
-    const current = await readFile(item.absolute, 'utf8');
-    if (current !== item.raw) {
-      throw new Error(
-        `Edit rejected for ${item.path}: the file changed during the edit. Read it again.`,
-      );
-    }
-    await writeFile(item.absolute, item.next, 'utf8');
-  });
+  withFileMutationQueue(item.absolute, () => writeFile(item.absolute, item.next, 'utf8'));
 
 const headerPaths = (input: unknown): string[] =>
   typeof input === 'string'
