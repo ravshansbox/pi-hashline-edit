@@ -38,7 +38,7 @@ const parsePatch = (input: string) => {
   let section: { path: string; tag: string; ops: Op[] } | undefined;
   let body: string[] | undefined;
 
-  input.split('\n').forEach((text) => {
+  input.split(/\r?\n/).forEach((text) => {
     if (body && text.startsWith('+')) {
       body.push(text.slice(1));
       return;

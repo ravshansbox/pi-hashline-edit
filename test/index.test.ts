@@ -179,3 +179,10 @@ test('CRLF line endings and a missing final newline are kept', async () => {
   await edit(`[a.txt#${tag}]\nPUT 2:\n+B\nPUT >$:\n+d`);
   assert.equal(file('a.txt'), 'a\r\nB\r\nc\r\nd');
 });
+
+test('a patch with CRLF line breaks is read as LF', async () => {
+  const { tagOf, edit, file } = setup({ 'a.txt': 'a\r\nb\r\n' });
+  const tag = await tagOf('a.txt');
+  await edit(`[a.txt#${tag}]\r\nPUT 1:\r\n+A\r\nPUT >$:\r\n+c\r\n`);
+  assert.equal(file('a.txt'), 'A\r\nb\r\nc\r\n');
+});
