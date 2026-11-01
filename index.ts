@@ -29,6 +29,7 @@ PUT >$:
 type Op = { text: string; from: number; to: number; check: number[]; body: string[] };
 
 const HEADER = /^\[(.+)#([0-9A-F]{4})\]$/;
+const BAD_HEADER = /^\[(.+)#(.*)\]$/;
 const PUT = /^PUT (?:(\d+)(?:\.=(\d+))?|<(\d+)|>(\d+|\$)):$/;
 
 const computeTag = (raw: string): string =>
@@ -76,6 +77,12 @@ const parsePatch = (input: string) => {
     if (body) {
       throw new Error(
         `body rows must start with +; got "${text}". Write a literal leading + or - as ++ or +-`,
+      );
+    }
+    const bad = BAD_HEADER.exec(trimmed);
+    if (bad) {
+      throw new Error(
+        `invalid tag "${bad[2]}" in header; read ${bad[1]} to get its current [PATH#TAG]`,
       );
     }
     throw new Error(`unknown operation "${trimmed}"`);

@@ -175,7 +175,13 @@ test('block ops, registers and CUT are not supported', async () => {
 test('a lowercase tag is rejected', async () => {
   const { tagOf, edit } = setup({ 'a.txt': 'one\n' });
   const tag = await tagOf('a.txt');
-  await assert.rejects(edit(`[a.txt#${tag.toLowerCase()}]\nPUT 1:\n+uno`), /unknown operation/);
+  await assert.rejects(edit(`[a.txt#${tag.toLowerCase()}]\nPUT 1:\n+uno`), /invalid tag/);
+});
+
+test('a placeholder tag asks for a read', async () => {
+  const { edit, file } = setup({ 'a.txt': 'one\n' });
+  await assert.rejects(edit('[a.txt#????]\nPUT 1:\n+uno'), /invalid tag "\?\?\?\?".*read a\.txt/);
+  assert.equal(file('a.txt'), 'one\n');
 });
 
 test('a missing file points at the write tool', async () => {
